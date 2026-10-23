@@ -267,7 +267,7 @@ th,td{border:1px solid var(--rule);padding:.45rem .6rem;vertical-align:top;text-
 th{background:var(--rule)}
 mark.agent{background:var(--mark);color:inherit;border-radius:2px}
 aside.agent-note{font:14px/1.5 system-ui,sans-serif;background:var(--note);border-left:3px solid var(--noteb);padding:.6rem .8rem;margin:.6rem 0 1.2rem;border-radius:4px}
-.margin aside.agent-note:hover,mark.agent.hot{outline:1px solid var(--noteb);outline-offset:2px}
+aside.agent-note.hot,mark.agent.hot{outline:1px solid var(--noteb);outline-offset:2px}
 .anno{position:relative}
 .warn{font:14px/1.5 system-ui,sans-serif;color:var(--warn)}
 #unanchored blockquote{font-style:italic}
@@ -383,11 +383,14 @@ const CLIENT = String.raw`
       unanchored.push([quote, note]);
       continue;
     }
-    // Hovering a note outlines its own highlight to match.
+    // Hovering a note or any piece of its highlight outlines the whole pair.
     const aside = el('aside', 'agent-note', note);
-    const link = on => () => marks.forEach(m => m.classList.toggle('hot', on));
-    aside.addEventListener('mouseenter', link(true));
-    aside.addEventListener('mouseleave', link(false));
+    const pair = [aside, ...marks];
+    const link = on => () => pair.forEach(e => e.classList.toggle('hot', on));
+    for (const e of pair) {
+      e.addEventListener('mouseenter', link(true));
+      e.addEventListener('mouseleave', link(false));
+    }
     marginFor(marks[0]).append(aside);
   }
 
