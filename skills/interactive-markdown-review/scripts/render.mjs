@@ -19,7 +19,8 @@
 //
 // If <out without .html>.baseline.md exists, blocks that differ from it get a
 // change bar at the left edge: one color for modified blocks, another for added
-// ones, and a small marker where blocks were deleted. The agent writes the
+// ones, and a small marker where blocks were deleted. Inside a changed list the
+// bars mark only the items that changed, at any nesting depth. The agent writes the
 // baseline at the start of its turn, so the bars show what that turn changed.
 //
 // Every top-level block carries the source line range it came from. serve.mjs
@@ -155,10 +156,14 @@ function changeMarks(current, baseline) {
     }
   }
   const marks = new Array(m).fill(null);
+  const pairs = new Array(m).fill(-1);
   const deletedBefore = new Array(m + 1).fill(false);
   let i = 0, j = 0, gapA = 0, gapB = [];
   const flush = () => {
-    gapB.forEach((k, x) => { marks[k] = x < gapA ? 'mod' : 'add'; });
+    gapB.forEach((k, x) => {
+      marks[k] = x < gapA ? 'mod' : 'add';
+      if (x < gapA) pairs[k] = i - gapA + x;
+    });
     if (gapA > gapB.length) deletedBefore[j] = true;
     gapA = 0;
     gapB = [];
@@ -169,14 +174,76 @@ function changeMarks(current, baseline) {
     else { gapA++; i++; }
   }
   flush();
-  return { marks, deletedBefore };
+  return { marks, pairs, deletedBefore };
+}
+
+const isList = t => t.type === 'bullet_list_open' || t.type === 'ordered_list_open';
+
+// Source text of lines [start, end), trailing blank lines dropped.
+function sourceText(lines, start, end) {
+  while (end > start + 1 && !lines[end - 1].trim()) end--;
+  return lines.slice(start, end).map(l => l.trimEnd()).join('\n');
+}
+
+// The items of the list opening at tokens[at], each with its nested lists.
+function listItems(tokens, at, lines) {
+  const items = [];
+  const level = tokens[at].level;
+  for (let k = at + 1; k < tokens.length && tokens[k].level > level; k++) {
+    const t = tokens[k];
+    if (t.type === 'list_item_open' && t.level === level + 1) {
+      items.push({ open: t, lists: [], text: sourceText(lines, t.map[0], t.map[1]), own: null });
+    } else if (isList(t) && t.level === level + 2) {
+      const item = items[items.length - 1];
+      if (item.own === null) item.own = sourceText(lines, item.open.map[0], t.map[0]);
+      item.lists.push(k);
+    }
+  }
+  return items;
+}
+
+// Mark changes item by item inside a modified list, descending into nested lists
+// when only they changed. Returns false if no item differs, e.g. when only the
+// spacing between items changed.
+function markListItems(cur, at, curLines, base, baseAt, baseLines, depth) {
+  const items = listItems(cur, at, curLines);
+  const baseItems = listItems(base, baseAt, baseLines);
+  const { marks, pairs, deletedBefore } = changeMarks(items, baseItems);
+  const tag = (item, cls) => {
+    item.open.attrJoin('class', cls);
+    item.open.attrSet('style', `--depth:${depth}`);
+  };
+  let found = false;
+  items.forEach((item, k) => {
+    if (deletedBefore[k]) { tag(item, 'chg-del-before'); found = true; }
+    if (!marks[k]) return;
+    found = true;
+    const old = baseItems[pairs[k]];
+    if (marks[k] === 'mod' && old && item.own !== null && item.own === old.own
+      && item.lists.length === old.lists.length) {
+      item.lists.forEach((l, x) => markListItems(cur, l, curLines, base, old.lists[x], baseLines, depth + 1));
+      return;
+    }
+    tag(item, `chg-${marks[k]}`);
+  });
+  if (deletedBefore[items.length] && items.length) { tag(items[items.length - 1], 'chg-del-after'); found = true; }
+  return found;
 }
 
 function renderBlocks(body, offset, env, baselineBody) {
   const blocks = splitBlocks(body, env);
   const mapped = blocks.filter(b => b.start >= 0);
-  const changes = baselineBody === null ? null
-    : changeMarks(mapped, splitBlocks(baselineBody, {}).filter(b => b.start >= 0));
+  const baseBlocks = baselineBody === null ? [] : splitBlocks(baselineBody, {}).filter(b => b.start >= 0);
+  const changes = baselineBody === null ? null : changeMarks(mapped, baseBlocks);
+  // A modified list marks only the items that changed.
+  if (changes) {
+    const lines = body.split('\n'), baseLines = baselineBody.split('\n');
+    mapped.forEach((blk, k) => {
+      const old = baseBlocks[changes.pairs[k]];
+      if (changes.marks[k] !== 'mod' || !old || !isList(blk.tokens[0]) || old.tokens[0].type !== blk.tokens[0].type) return;
+      if (markListItems(blk.tokens, 0, lines, old.tokens, 0, baseLines, 1)) changes.marks[k] = null;
+    });
+  }
   let html = '';
   let k = 0;
   for (const blk of blocks) {
@@ -267,6 +334,14 @@ th,td{border:1px solid var(--rule);padding:.45rem .6rem;vertical-align:top;text-
 th{background:var(--rule)}
 mark.agent{background:var(--mark);color:inherit;border-radius:2px}
 aside.agent-note{font:14px/1.5 system-ui,sans-serif;background:var(--note);border-left:3px solid var(--noteb);padding:.6rem .8rem;margin:.6rem 0 1.2rem;border-radius:4px}
+aside.agent-note.hot,mark.agent.hot{outline:1px solid var(--noteb);outline-offset:2px}
+.turn{margin:0 -.8rem;padding:0 .8rem}
+.turn+.turn{border-top:1px solid var(--noteb);margin-top:.5rem;padding-top:.5rem}
+.byline{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.turn.by-author{background:var(--bg);padding-bottom:.5rem}
+.turn.by-author+.turn{margin-top:0}
+.turn.by-author:last-child{margin-bottom:-.6rem;padding-bottom:.6rem}
+.turn.by-author .byline{color:var(--noteb)}
 .anno{position:relative}
 .warn{font:14px/1.5 system-ui,sans-serif;color:var(--warn)}
 #unanchored blockquote{font-style:italic}
@@ -282,6 +357,11 @@ textarea.src-edit{display:block;box-sizing:border-box;width:100%;margin:1rem 0;p
 .chg-mod::before,.chg-add::before{content:"";position:absolute;left:-.8rem;top:.15rem;bottom:.15rem;width:3px;border-radius:2px;pointer-events:none}
 .chg-mod::before{background:var(--chg-mod)}
 .chg-add::before{background:var(--chg-add)}
+li.chg-mod,li.chg-add,li.chg-del-before,li.chg-del-after{position:relative}
+li.chg-mod::before,li.chg-add::before{left:calc(-.8rem - var(--depth)*40px)}
+li.chg-del-before::after,li.chg-del-after::after{content:"";position:absolute;left:calc(-.8rem - var(--depth)*40px);border:5px solid transparent;border-left:6px solid var(--chg-del);pointer-events:none}
+li.chg-del-before::after{top:-5px}
+li.chg-del-after::after{bottom:-5px}
 .chg-del{position:relative;height:0}
 .chg-del::before{content:"";position:absolute;left:-.8rem;top:-5px;border:5px solid transparent;border-left:6px solid var(--chg-del);pointer-events:none}
 @media (min-width:66rem){
@@ -335,28 +415,28 @@ const CLIENT = String.raw`
     return { text, chars };
   }
 
-  // Highlight the first occurrence of quote; return the first <mark> or null.
+  // Highlight the first occurrence of quote; return its <mark>s, or [] if absent.
   function highlight(quote) {
     const q = quote.replace(/\s+/g, ' ').trim();
-    if (!q) return null;
+    if (!q) return [];
     const { text, chars } = indexText();
     const at = text.indexOf(q);
-    if (at < 0) return null;
+    if (at < 0) return [];
     const spans = new Map();
     for (const [node, i] of chars.slice(at, at + q.length)) {
       const s = spans.get(node);
       if (s) s[1] = i + 1; else spans.set(node, [i, i + 1]);
     }
-    let first = null;
+    const marks = [];
     for (const [node, [start, end]] of spans) {
       const r = document.createRange();
       r.setStart(node, start);
       r.setEnd(node, end);
       const m = el('mark', 'agent');
       r.surroundContents(m);
-      first = first || m;
+      marks.push(m);
     }
-    return first;
+    return marks;
   }
 
   // The margin column belongs to the top-level block that holds the mark.
@@ -372,14 +452,43 @@ const CLIENT = String.raw`
     return margin;
   }
 
+  // A note is plain text, or a thread: turns by the editor and the author,
+  // each under a byline and separated by a divider.
+  function noteBody(n) {
+    if (n && Array.isArray(n.thread) && n.thread.length) {
+      const f = document.createDocumentFragment();
+      for (const t of n.thread) {
+        const by = t && t.by === 'author' ? 'author' : 'editor';
+        const turn = el('div', 'turn by-' + by);
+        turn.append(el('div', 'byline', by === 'author' ? 'Author' : 'Editor'),
+          el('div', '', t && typeof t.text === 'string' ? t.text : JSON.stringify(t)));
+        f.append(turn);
+      }
+      return f;
+    }
+    return document.createTextNode(n && typeof n.note === 'string' ? n.note : JSON.stringify(n));
+  }
+
   const anchors = new Map();
   const unanchored = [];
   for (const n of data.notes) {
     const quote = n && typeof n.quote === 'string' ? n.quote : '';
-    const note = n && typeof n.note === 'string' ? n.note : JSON.stringify(n);
-    const mark = quote ? highlight(quote) : null;
-    if (mark) marginFor(mark).append(el('aside', 'agent-note', note));
-    else unanchored.push([quote, note]);
+    const note = noteBody(n);
+    const marks = quote ? highlight(quote) : [];
+    if (!marks.length) {
+      unanchored.push([quote, note]);
+      continue;
+    }
+    // Hovering a note or any piece of its highlight outlines the whole pair.
+    const aside = el('aside', 'agent-note');
+    aside.append(note);
+    const pair = [aside, ...marks];
+    const link = on => () => pair.forEach(e => e.classList.toggle('hot', on));
+    for (const e of pair) {
+      e.addEventListener('mouseenter', link(true));
+      e.addEventListener('mouseleave', link(false));
+    }
+    marginFor(marks[0]).append(aside);
   }
 
   if (unanchored.length) {
@@ -388,7 +497,9 @@ const CLIENT = String.raw`
     s.append(el('h2', '', 'Notes that no longer match the text'),
       el('p', 'warn', 'The quoted passage was not found in the current document, usually because it was edited after the note was written.'));
     for (const [quote, note] of unanchored) {
-      s.append(el('blockquote', '', quote || '(no quote)'), el('aside', 'agent-note', note));
+      const aside = el('aside', 'agent-note');
+      aside.append(note);
+      s.append(el('blockquote', '', quote || '(no quote)'), aside);
     }
     main.append(s);
   }
