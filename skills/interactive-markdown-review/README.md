@@ -17,7 +17,9 @@ It has two modes:
   When a session starts in bracket mode, the agent mentions in one line that visual
   mode is available; ask for it ("review this visually") to switch.
 
-See [`SKILL.md`](SKILL.md) for the full protocol.
+See [`SKILL.md`](SKILL.md) for the protocol and
+[`references/visual-mode.md`](references/visual-mode.md) for visual mode, which the
+agent reads only when you ask for it.
 
 ## Requirements
 
