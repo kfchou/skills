@@ -1,0 +1,29 @@
+{
+  "name": "kfchou-skills",
+  "owner": {
+    "name": "kfchou",
+    "url": "https://github.com/kfchou"
+  },
+  "metadata": {
+    "description": "Agent skills by kfchou, one plugin per skill",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "interactive-markdown-review",
+      "source": "./",
+      "skills": ["./skills/interactive-markdown-review"],
+      "description": "Edit prose with an agent over many passes: inline <comments> and <<replies>> in the file, or a visual review page in Lavish.",
+      "version": "1.0.0",
+      "author": {
+        "name": "kfchou",
+        "url": "https://github.com/kfchou"
+      },
+      "homepage": "https://github.com/kfchou/skills/tree/main/skills/interactive-markdown-review",
+      "repository": "https://github.com/kfchou/skills",
+      "license": "MIT",
+      "keywords": ["writing", "editing", "review", "markdown", "prose", "lavish"],
+      "strict": false
+    }
+  ]
+}
