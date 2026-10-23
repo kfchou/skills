@@ -267,6 +267,7 @@ th,td{border:1px solid var(--rule);padding:.45rem .6rem;vertical-align:top;text-
 th{background:var(--rule)}
 mark.agent{background:var(--mark);color:inherit;border-radius:2px}
 aside.agent-note{font:14px/1.5 system-ui,sans-serif;background:var(--note);border-left:3px solid var(--noteb);padding:.6rem .8rem;margin:.6rem 0 1.2rem;border-radius:4px}
+.margin aside.agent-note:hover,mark.agent.hot{outline:1px solid var(--noteb);outline-offset:2px}
 .anno{position:relative}
 .warn{font:14px/1.5 system-ui,sans-serif;color:var(--warn)}
 #unanchored blockquote{font-style:italic}
@@ -335,28 +336,28 @@ const CLIENT = String.raw`
     return { text, chars };
   }
 
-  // Highlight the first occurrence of quote; return the first <mark> or null.
+  // Highlight the first occurrence of quote; return its <mark>s, or [] if absent.
   function highlight(quote) {
     const q = quote.replace(/\s+/g, ' ').trim();
-    if (!q) return null;
+    if (!q) return [];
     const { text, chars } = indexText();
     const at = text.indexOf(q);
-    if (at < 0) return null;
+    if (at < 0) return [];
     const spans = new Map();
     for (const [node, i] of chars.slice(at, at + q.length)) {
       const s = spans.get(node);
       if (s) s[1] = i + 1; else spans.set(node, [i, i + 1]);
     }
-    let first = null;
+    const marks = [];
     for (const [node, [start, end]] of spans) {
       const r = document.createRange();
       r.setStart(node, start);
       r.setEnd(node, end);
       const m = el('mark', 'agent');
       r.surroundContents(m);
-      first = first || m;
+      marks.push(m);
     }
-    return first;
+    return marks;
   }
 
   // The margin column belongs to the top-level block that holds the mark.
@@ -377,9 +378,17 @@ const CLIENT = String.raw`
   for (const n of data.notes) {
     const quote = n && typeof n.quote === 'string' ? n.quote : '';
     const note = n && typeof n.note === 'string' ? n.note : JSON.stringify(n);
-    const mark = quote ? highlight(quote) : null;
-    if (mark) marginFor(mark).append(el('aside', 'agent-note', note));
-    else unanchored.push([quote, note]);
+    const marks = quote ? highlight(quote) : [];
+    if (!marks.length) {
+      unanchored.push([quote, note]);
+      continue;
+    }
+    // Hovering a note outlines its own highlight to match.
+    const aside = el('aside', 'agent-note', note);
+    const link = on => () => marks.forEach(m => m.classList.toggle('hot', on));
+    aside.addEventListener('mouseenter', link(true));
+    aside.addEventListener('mouseleave', link(false));
+    marginFor(marks[0]).append(aside);
   }
 
   if (unanchored.length) {
