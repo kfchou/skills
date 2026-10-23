@@ -40,6 +40,29 @@ To uninstall the plugin:
 /plugin marketplace remove kfchou-skills
 ```
 
+## Updating
+
+With the `skills` CLI (add `-g` for a global install):
+
+```sh
+npx skills update interactive-markdown-review
+```
+
+As a Claude Code plugin, refresh the marketplace, then update the plugin from your shell:
+
+```sh
+claude plugin marketplace update kfchou-skills
+claude plugin update interactive-markdown-review@kfchou-skills
+```
+
+In a session, use `/plugin`: on the **Marketplaces** tab, select `kfchou-skills` and choose
+**Update marketplace**. Then run `/reload-plugins`, or start a new session. Third-party
+marketplaces like this one don't auto-update by default; turn it on from the same tab.
+
+Maintainers: every change to a skill bumps its plugin `version` in
+[`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json). Plugin users only
+receive a change when that version changes.
+
 ## License
 
 [MIT](LICENSE)
