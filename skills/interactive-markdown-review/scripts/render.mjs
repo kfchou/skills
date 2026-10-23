@@ -268,6 +268,13 @@ th{background:var(--rule)}
 mark.agent{background:var(--mark);color:inherit;border-radius:2px}
 aside.agent-note{font:14px/1.5 system-ui,sans-serif;background:var(--note);border-left:3px solid var(--noteb);padding:.6rem .8rem;margin:.6rem 0 1.2rem;border-radius:4px}
 aside.agent-note.hot,mark.agent.hot{outline:1px solid var(--noteb);outline-offset:2px}
+.turn{margin:0 -.8rem;padding:0 .8rem}
+.turn+.turn{border-top:1px solid var(--noteb);margin-top:.5rem;padding-top:.5rem}
+.byline{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.turn.by-author{background:var(--bg);padding-bottom:.5rem}
+.turn.by-author+.turn{margin-top:0}
+.turn.by-author:last-child{margin-bottom:-.6rem;padding-bottom:.6rem}
+.turn.by-author .byline{color:var(--noteb)}
 .anno{position:relative}
 .warn{font:14px/1.5 system-ui,sans-serif;color:var(--warn)}
 #unanchored blockquote{font-style:italic}
@@ -373,18 +380,36 @@ const CLIENT = String.raw`
     return margin;
   }
 
+  // A note is plain text, or a thread: turns by the editor and the author,
+  // each under a byline and separated by a divider.
+  function noteBody(n) {
+    if (n && Array.isArray(n.thread) && n.thread.length) {
+      const f = document.createDocumentFragment();
+      for (const t of n.thread) {
+        const by = t && t.by === 'author' ? 'author' : 'editor';
+        const turn = el('div', 'turn by-' + by);
+        turn.append(el('div', 'byline', by === 'author' ? 'Author' : 'Editor'),
+          el('div', '', t && typeof t.text === 'string' ? t.text : JSON.stringify(t)));
+        f.append(turn);
+      }
+      return f;
+    }
+    return document.createTextNode(n && typeof n.note === 'string' ? n.note : JSON.stringify(n));
+  }
+
   const anchors = new Map();
   const unanchored = [];
   for (const n of data.notes) {
     const quote = n && typeof n.quote === 'string' ? n.quote : '';
-    const note = n && typeof n.note === 'string' ? n.note : JSON.stringify(n);
+    const note = noteBody(n);
     const marks = quote ? highlight(quote) : [];
     if (!marks.length) {
       unanchored.push([quote, note]);
       continue;
     }
     // Hovering a note or any piece of its highlight outlines the whole pair.
-    const aside = el('aside', 'agent-note', note);
+    const aside = el('aside', 'agent-note');
+    aside.append(note);
     const pair = [aside, ...marks];
     const link = on => () => pair.forEach(e => e.classList.toggle('hot', on));
     for (const e of pair) {
@@ -400,7 +425,9 @@ const CLIENT = String.raw`
     s.append(el('h2', '', 'Notes that no longer match the text'),
       el('p', 'warn', 'The quoted passage was not found in the current document, usually because it was edited after the note was written.'));
     for (const [quote, note] of unanchored) {
-      s.append(el('blockquote', '', quote || '(no quote)'), el('aside', 'agent-note', note));
+      const aside = el('aside', 'agent-note');
+      aside.append(note);
+      s.append(el('blockquote', '', quote || '(no quote)'), aside);
     }
     main.append(s);
   }

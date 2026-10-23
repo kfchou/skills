@@ -59,6 +59,12 @@ link syntax); line breaks and runs of spaces may differ. The first occurrence is
 highlighted, so quote enough to be unique. A note whose quote no longer matches is
 listed at the end of the page under "Notes that no longer match the text".
 
+A note that holds a back-and-forth uses `thread` in place of `note`: an array of
+turns in order, each `{"by": "editor" | "author", "text": "..."}`, for example
+`{"quote": "...", "thread": [{"by": "editor", "text": "..."}, {"by": "author",
+"text": "..."}, {"by": "editor", "text": "..."}]}`. The page shows each turn under a
+byline, separated by dividers, with author turns set apart from yours.
+
 ## How the protocol maps
 
 - Author `<comments>` arrive through the poll as a quoted selection plus the comment.
@@ -67,7 +73,9 @@ listed at the end of the page under "Notes that no longer match the text".
   passage it concerns. `STRUCTURAL:` and `META:` prefixes carry over into the note
   text, and one issue per comment becomes one issue per note.
 - An author comment you didn't act on gets a note on the same passage answering it.
-  The author replies by highlighting the note.
+  The author replies by highlighting the note. When they do, turn the note into a
+  `thread`: keep the earlier turns, add their reply as an `author` turn and your
+  answer as an `editor` turn, rather than folding the exchange into one note text.
 - Resolved threads drop their notes. The notes file holds only the open editor
   comments for this turn, so a converging draft renders with fewer of them.
 - **Direct edits.** With Lavish's Annotate switch off (or Ctrl/Cmd+I), the author
