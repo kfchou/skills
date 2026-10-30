@@ -335,6 +335,10 @@ th{background:var(--rule)}
 mark.agent{background:var(--mark);color:inherit;border-radius:2px}
 aside.agent-note{font:14px/1.5 system-ui,sans-serif;background:var(--note);border-left:3px solid var(--noteb);padding:.6rem .8rem;margin:.6rem 0 1.2rem;border-radius:4px}
 aside.agent-note.hot,mark.agent.hot{outline:1px solid var(--noteb);outline-offset:2px}
+aside.agent-note:not(.open){max-height:1.55em;overflow:hidden;cursor:pointer;opacity:.75;-webkit-mask-image:linear-gradient(90deg,#000 80%,transparent)}
+aside.agent-note.open,mark.agent.open{outline:2px solid var(--noteb);outline-offset:2px}
+aside.agent-note.hot,aside.agent-note.open{max-height:none;opacity:1;-webkit-mask-image:none;position:relative;z-index:5;box-shadow:0 4px 14px rgba(0,0,0,.18)}
+mark.agent{cursor:pointer}
 .turn{margin:0 -.8rem;padding:0 .8rem}
 .turn+.turn{border-top:1px solid var(--noteb);margin-top:.5rem;padding-top:.5rem}
 .byline{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
@@ -489,7 +493,26 @@ const CLIENT = String.raw`
       e.addEventListener('mouseleave', link(false));
     }
     marginFor(marks[0]).append(aside);
+    // Notes start collapsed to one line. Hovering a note or its highlight
+    // expands it for reading; clicking pins it open and collapses the others.
+    // A text selection inside a highlight is left alone so annotating works.
+    const open = () => {
+      document.querySelectorAll('.agent-note.open, mark.agent.open').forEach(e => e.classList.remove('open'));
+      pair.forEach(e => e.classList.add('open'));
+      stack();
+    };
+    // Lavish's annotator may swallow element click handlers, so clicks are
+    // caught on window in the capture phase (below) and routed here.
+    for (const e of pair) e._lavishOpen = open;
   }
+
+  addEventListener('pointerup', ev => {
+    const t = ev.target.closest && ev.target.closest('aside.agent-note, mark.agent');
+    if (!t || !t._lavishOpen || t.classList.contains('open')) return;
+    const sel = getSelection();
+    if (t.tagName === 'MARK' && sel && !sel.isCollapsed) return;
+    t._lavishOpen();
+  }, true);
 
   if (unanchored.length) {
     const s = el('section');

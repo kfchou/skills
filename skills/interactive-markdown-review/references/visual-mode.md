@@ -58,6 +58,10 @@ text from the document as it reads, without markdown markup (no `**`, backticks,
 link syntax); line breaks and runs of spaces may differ. The first occurrence is
 highlighted, so quote enough to be unique. A note whose quote no longer matches is
 listed at the end of the page under "Notes that no longer match the text".
+On the page each note starts collapsed to one line, so a draft with many notes
+stays readable. Hovering a note or its highlight expands it, and clicking pins it
+open and collapses the others. Keep each note's first words a clear summary of
+its point, since they are all the author sees before expanding it.
 
 A note that holds a back-and-forth uses `thread` in place of `note`: an array of
 turns in order, each `{"by": "editor" | "author", "text": "..."}`, for example
